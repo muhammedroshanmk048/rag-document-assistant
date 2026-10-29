@@ -29,12 +29,12 @@ Done:
 - Deps installed in `.venv`; `.env` created (gitignored, also in `.dockerignore`).
 - Tested end to end locally: PDF upload, URL ingest, text ingest, delete, chat with citations, out-of-scope refusal.
 - Fixes from testing: `gemini-2.5-flash` was retired for new keys -> now `gemini-flash-latest` alias, with `GEMINI_FALLBACK_MODEL=gemini-flash-lite-latest` and `max_retries=1` because the free tier returns 503 at peak times. Chroma collection uses cosine distance so relevance scores stay in 0..1 (delete `data/chroma` if an old L2 store exists).
-- Versions pinned in `requirements.txt` (torch pinned in Dockerfile/README). First commit on `main`.
+- Versions pinned in `requirements.txt` (torch pinned in Dockerfile/README). Pushed to https://github.com/muhammedroshanmk048/rag-document-assistant (`origin/main`).
 
 Not done yet, in order:
-1. Create the GitHub repo `muhammedroshanmk048/rag-document-assistant` and push. `gh` CLI is NOT installed — the owner can use VS Code "Publish to GitHub" or create it on github.com, then `git remote add origin ... && git push -u origin main`.
-2. Deploy to Hugging Face Spaces, add `GOOGLE_API_KEY` as a Space secret. Docker image build has not been tested locally (Docker Desktop was not running).
-3. Add a DocChat card to the portfolio in `../project-zap/index.html` and push (Vercel auto-deploys).
+0. Before public deploy: all visitors share one Chroma store (no per-user isolation) and HF free-tier disk resets on restart. Owner was told; per-session isolation was offered, not yet decided.
+1. Deploy to Hugging Face Spaces, add `GOOGLE_API_KEY` as a Space secret. Docker image build has not been tested locally (Docker Desktop was not running).
+2. Add a DocChat card to the portfolio in `../project-zap/index.html` and push (Vercel auto-deploys).
 
 ## Environment notes
 
