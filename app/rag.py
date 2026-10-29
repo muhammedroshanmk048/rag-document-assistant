@@ -124,16 +124,17 @@ def delete_document(doc_id: str) -> int:
 # ---------- Retrieval + grounded generation ----------
 
 def retrieve(question: str) -> list[dict]:
-    results = get_store().similarity_search_with_relevance_scores(question, k=settings.top_k)
+    # Cosine distance is 0..2; unrelated chunks give negative similarity, so clamp to 0..1
+    results = get_store().similarity_search_with_score(question, k=settings.top_k)
     return [
         {
             "n": i + 1,
             "source": doc.metadata["source"],
             "page": doc.metadata["page"],
-            "score": round(score, 3),
+            "score": round(max(0.0, 1.0 - distance), 3),
             "text": doc.page_content,
         }
-        for i, (doc, score) in enumerate(results)
+        for i, (doc, distance) in enumerate(results)
     ]
 
 
