@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DocChat · RAG Document Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">Doc<span>Chat</span></div>
+    <p class="hint">Add documents, then ask questions. Answers come only from your documents, with citations.</p>
+
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".pdf,.md,.txt" multiple hidden />
+      <strong>Drop PDFs here</strong>
+      <span>or click to browse · .pdf .md .txt</span>
+    </label>
+
+    <form class="url-form" id="urlForm">
+      <input type="url" id="url" placeholder="https://article-url…" required />
+      <button type="submit">Add</button>
+    </form>
+
+    <div class="status" id="status"></div>
+
+    <h3>Documents</h3>
+    <ul class="docs" id="docs"><li class="empty">No documents yet</li></ul>
+  </aside>
+
+  <main class="chat">
+    <div class="messages" id="messages">
+      <div class="welcome">
+        <h1>Ask your documents anything</h1>
+        <p>Chunking · local embeddings · Chroma vector search · grounded answers</p>
+      </div>
+    </div>
+    <form class="ask" id="ask">
+      <textarea id="question" rows="1" placeholder="Ask a question about your documents…" required></textarea>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
