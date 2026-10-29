@@ -1,7 +1,11 @@
+import ipaddress
 import os
+import socket
+import time
 import uuid
 from collections.abc import Iterator
 from functools import lru_cache
+from urllib.parse import urlparse
 
 os.environ.setdefault("USER_AGENT", "rag-document-assistant/1.0")
 
@@ -74,48 +78,87 @@ def load_pdf(path: str) -> list[Document]:
     return PyPDFLoader(path).load()
 
 
+def check_public_url(url: str) -> None:
+    """Refuse URLs that resolve to private or local addresses, so the server can't be used to probe its own network."""
+    host = urlparse(url).hostname or ""
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(host, None)}
+    except socket.gaierror:
+        raise ValueError(f"Could not resolve host: {host}")
+    for addr in addresses:
+        ip = ipaddress.ip_address(addr)
+        if not ip.is_global:
+            raise ValueError("URLs pointing to private or local addresses are not allowed.")
+
+
 def load_url(url: str) -> list[Document]:
-    return WebBaseLoader(url).load()
+    check_public_url(url)
+    return WebBaseLoader(url, requests_kwargs={"timeout": 20}).load()
 
 
 def load_text(text: str) -> list[Document]:
     return [Document(page_content=text)]
 
 
-def ingest(docs: list[Document], source: str) -> dict:
-    """Chunk documents, embed them locally and store them in Chroma."""
+def ingest(docs: list[Document], source: str, session_id: str) -> dict:
+    """Chunk documents, embed them locally and store them in Chroma, tagged with the uploader's session."""
+    if len(list_documents(session_id)) >= settings.max_docs_per_session:
+        raise ValueError(f"Limit of {settings.max_docs_per_session} documents reached. Remove one first.")
+
     doc_id = uuid.uuid4().hex[:12]
     splitter = RecursiveCharacterTextSplitter(chunk_size=settings.chunk_size, chunk_overlap=settings.chunk_overlap)
     chunks = splitter.split_documents(docs)
     chunks = [c for c in chunks if c.page_content.strip()]
     if not chunks:
         raise ValueError("No readable text found in this document.")
+    if len(chunks) > settings.max_chunks_per_doc:
+        raise ValueError(f"Document is too long ({len(chunks)} chunks, limit {settings.max_chunks_per_doc}).")
 
+    created_at = int(time.time())
     for c in chunks:
         page = c.metadata.get("page")
         c.metadata = {
             "doc_id": doc_id,
+            "session_id": session_id,
+            "created_at": created_at,
             "source": source,
             # PyPDFLoader pages are 0-based; store 1-based for display, -1 when not paged
             "page": page + 1 if isinstance(page, int) else -1,
         }
 
     get_store().add_documents(chunks, ids=[f"{doc_id}-{i}" for i in range(len(chunks))])
-    return {"doc_id": doc_id, "source": source, "chunks": len(chunks)}
+    return {"doc_id": doc_id, "source": source, "chunks": len(chunks), "expires_at": expires_at(created_at)}
 
 
-def list_documents() -> list[dict]:
-    metadatas = get_store().get(include=["metadatas"])["metadatas"]
+def expires_at(created_at: int) -> int:
+    return created_at + int(settings.doc_ttl_hours * 3600)
+
+
+def list_documents(session_id: str) -> list[dict]:
+    metadatas = get_store().get(where={"session_id": session_id}, include=["metadatas"])["metadatas"]
     docs: dict[str, dict] = {}
     for m in metadatas:
-        d = docs.setdefault(m["doc_id"], {"doc_id": m["doc_id"], "source": m["source"], "chunks": 0})
+        d = docs.setdefault(
+            m["doc_id"],
+            {"doc_id": m["doc_id"], "source": m["source"], "chunks": 0, "expires_at": expires_at(m["created_at"])},
+        )
         d["chunks"] += 1
     return list(docs.values())
 
 
-def delete_document(doc_id: str) -> int:
+def delete_document(session_id: str, doc_id: str) -> int:
     store = get_store()
-    ids = store.get(where={"doc_id": doc_id})["ids"]
+    ids = store.get(where={"$and": [{"session_id": session_id}, {"doc_id": doc_id}]})["ids"]
+    if ids:
+        store.delete(ids=ids)
+    return len(ids)
+
+
+def purge_expired() -> int:
+    """Delete every chunk older than doc_ttl_hours, across all sessions. Returns the number of chunks removed."""
+    cutoff = int(time.time() - settings.doc_ttl_hours * 3600)
+    store = get_store()
+    ids = store.get(where={"created_at": {"$lt": cutoff}})["ids"]
     if ids:
         store.delete(ids=ids)
     return len(ids)
@@ -123,9 +166,9 @@ def delete_document(doc_id: str) -> int:
 
 # ---------- Retrieval + grounded generation ----------
 
-def retrieve(question: str) -> list[dict]:
+def retrieve(question: str, session_id: str) -> list[dict]:
     # Cosine distance is 0..2; unrelated chunks give negative similarity, so clamp to 0..1
-    results = get_store().similarity_search_with_score(question, k=settings.top_k)
+    results = get_store().similarity_search_with_score(question, k=settings.top_k, filter={"session_id": session_id})
     return [
         {
             "n": i + 1,

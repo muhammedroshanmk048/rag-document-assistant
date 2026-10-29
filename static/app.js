@@ -6,14 +6,45 @@ function setStatus(text, isError = false) {
   statusEl.classList.toggle("err", isError);
 }
 
+// Random per-browser ID: the server only shows documents added from this browser
+function getSessionId() {
+  const make = () => (crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join(""));
+  try {
+    let id = localStorage.getItem("docchat-session");
+    if (!id) {
+      id = make();
+      localStorage.setItem("docchat-session", id);
+    }
+    return id;
+  } catch {
+    return make(); // storage blocked: session lasts until the page is closed
+  }
+}
+const SESSION_ID = getSessionId();
+
+function withSession(options) {
+  return { ...options, headers: { ...options.headers, "X-Session-Id": SESSION_ID } };
+}
+
 async function api(path, options = {}) {
-  const res = await fetch(path, options);
+  const res = await fetch(path, withSession(options));
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.detail || `Request failed (${res.status})`);
   return body;
 }
 
 // ---------- Documents ----------
+
+function expiresIn(epochSeconds) {
+  const mins = Math.max(0, Math.round((epochSeconds * 1000 - Date.now()) / 60000));
+  return mins >= 60 ? `expires in ${Math.round(mins / 60)}h` : `expires in ${mins}m`;
+}
+
+async function showLimits() {
+  const l = await api("/api/limits");
+  $("limits").textContent =
+    `Private to this browser · up to ${l.max_docs_per_session} docs, ${l.max_upload_mb} MB each · auto-deleted after ${l.doc_ttl_hours}h`;
+}
 
 async function refreshDocs() {
   const docs = await api("/api/documents");
@@ -25,7 +56,7 @@ async function refreshDocs() {
   }
   for (const d of docs) {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="name"></span><span class="meta">${d.chunks} chunks</span><button title="Remove">×</button>`;
+    li.innerHTML = `<span class="name"></span><span class="meta">${d.chunks} chunks · ${expiresIn(d.expires_at)}</span><button title="Remove">×</button>`;
     li.querySelector(".name").textContent = d.source;
     li.querySelector(".name").title = d.source;
     li.querySelector("button").onclick = async () => {
@@ -124,12 +155,15 @@ async function ask(question) {
   let answer = "";
   let sources = [];
   try {
-    const res = await fetch("/api/chat", {
+    const res = await fetch("/api/chat", withSession({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
-    });
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `Request failed (${res.status})`);
+    }
 
     // Parse the server-sent event stream
     const reader = res.body.getReader();
@@ -177,3 +211,4 @@ q.onkeydown = (e) => {
 };
 
 refreshDocs().catch((e) => setStatus(e.message, true));
+showLimits().catch(() => {});
