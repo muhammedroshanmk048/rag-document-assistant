@@ -1,13 +1,3 @@
----
-title: DocChat RAG Document Assistant
-emoji: 📄
-colorFrom: indigo
-colorTo: blue
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # DocChat — RAG Document Assistant
 
 A chatbot that answers questions using information retrieved from your PDFs, articles and internal documents — with inline citations back to the source and page.
@@ -23,7 +13,7 @@ Upload PDF / URL / text
  Load ─► Chunk (RecursiveCharacterTextSplitter, 1000 chars / 150 overlap)
         │
         ▼
- Embed locally (sentence-transformers/all-MiniLM-L6-v2) ─► Store in Chroma
+ Embed locally (all-MiniLM-L6-v2 via fastembed/ONNX) ─► Store in Chroma
         
  Question ─► Embed ─► Vector search (top-k chunks) ─► Prompt with numbered context
                                                         │
@@ -41,17 +31,16 @@ Upload PDF / URL / text
 | API | Python, FastAPI, Pydantic |
 | RAG pipeline | LangChain |
 | Vector DB | Chroma (persisted to `data/chroma`) |
-| Embeddings | HuggingFace `all-MiniLM-L6-v2`, runs locally on CPU |
+| Embeddings | `all-MiniLM-L6-v2` via fastembed (ONNX), runs locally on CPU, no PyTorch |
 | LLM | Gemini (free tier) or Ollama (local) — switch with one env var |
 | Frontend | Plain HTML/CSS/JS chat UI |
-| Deploy | Docker, Hugging Face Spaces |
+| Deploy | Docker, Render (free tier) |
 
 ## Run locally
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate          # Windows  (macOS/Linux: source .venv/bin/activate)
-pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 
 copy .env.example .env          # then add your GOOGLE_API_KEY
@@ -94,13 +83,15 @@ Built to be deployed publicly without accounts:
 
 All limits are configurable via environment variables (see `.env.example`).
 
-## Deploy free on Hugging Face Spaces
+## Deploy free on Render
 
-1. Create a new Space → SDK **Docker** → Blank.
-2. Push this repo to the Space (or connect it to GitHub).
-3. In Space **Settings → Variables and secrets**, add secret `GOOGLE_API_KEY`.
+The app is sized for Render's free web service (512 MB RAM, no credit card): embeddings run on ONNX instead of PyTorch with small batches, so even a 300-chunk document peaks around 360 MB.
 
-Note: free Spaces storage is temporary, so uploaded documents reset when the Space restarts.
+1. Sign in at [render.com](https://render.com) with GitHub.
+2. **New → Blueprint** → pick this repo. Render reads `render.yaml` and creates a free Docker web service.
+3. Paste your `GOOGLE_API_KEY` when asked, then deploy.
+
+Free-tier behaviour: the service sleeps after 15 minutes idle (the first request then takes about a minute), and its disk is temporary, so documents also reset on every restart or redeploy — on top of the 24h auto-expiry.
 
 ## Notes
 

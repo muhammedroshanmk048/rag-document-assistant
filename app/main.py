@@ -69,7 +69,7 @@ _chat_calls: dict[str, deque] = defaultdict(deque)
 
 
 def client_ip(request: Request) -> str:
-    # Hugging Face Spaces sits behind a proxy, so the real client is the first X-Forwarded-For hop
+    # Hosting platforms sit behind a proxy, so the real client is the first X-Forwarded-For hop
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()

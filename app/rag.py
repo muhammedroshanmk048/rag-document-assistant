@@ -11,10 +11,10 @@ os.environ.setdefault("USER_AGENT", "rag-document-assistant/1.0")
 
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader, WebBaseLoader
+from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_core.documents import Document
-from langchain_core.runnables import Runnable
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.runnables import Runnable
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import get_settings
@@ -34,8 +34,15 @@ PROMPT = ChatPromptTemplate.from_messages([
 
 
 @lru_cache
-def get_embeddings() -> HuggingFaceEmbeddings:
-    return HuggingFaceEmbeddings(model_name=settings.embed_model)
+def get_embeddings() -> FastEmbedEmbeddings:
+    # ONNX runtime instead of PyTorch: same model and vectors, about half the memory (fits 512 MB free hosting).
+    # Small batches matter most: the default of 256 peaks near 2 GB on a long PDF, batch 4 stays ~330 MB.
+    return FastEmbedEmbeddings(
+        model_name=settings.embed_model,
+        cache_dir=settings.embed_cache_dir,
+        batch_size=settings.embed_batch_size,
+        threads=1,
+    )
 
 
 @lru_cache

@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     # Embeddings run locally — no API key, no cost
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embed_cache_dir: str = "data/models"
+    embed_batch_size: int = 4
 
     chroma_dir: str = "data/chroma"
     chunk_size: int = 1000
