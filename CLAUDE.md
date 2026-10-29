@@ -32,9 +32,10 @@ Done:
 - Versions pinned in `requirements.txt` . Pushed to https://github.com/muhammedroshanmk048/rag-document-assistant (`origin/main`).
 - Multi-user safety (no login, by design): browser-generated `X-Session-Id` tags every chunk and filters list/search/delete; background TTL purge (`DOC_TTL_HOURS`); per-session doc cap, per-doc chunk cap, per-IP chat rate limit; URL ingest refuses private/local IPs. Chunks without `session_id`/`created_at` (from older builds) are invisible and never purged — wipe `data/chroma` if any exist.
 
-Not done yet, in order:
-1. Deploy on Render: owner signs in with GitHub, New → Blueprint → this repo, enters `GOOGLE_API_KEY`. Docker image build has not been tested locally (Docker Desktop was not running).
-2. Add a DocChat card to the portfolio in `../project-zap/index.html` and push (Vercel auto-deploys).
+- Live on Render: https://docchat-ft5u.onrender.com (auto-deploys from `main`). Verified live: upload, URL ingest, cited answers, refusal, session isolation, SSRF guard.
+- DocChat card added to the portfolio (`../project-zap`, live at https://muhammedroshanmk.vercel.app).
+
+All original steps are done. Possible next ideas (not requested): keep-warm ping to avoid the cold start, Ollama-free fallback if Gemini quota runs out.
 
 ## Environment notes
 
